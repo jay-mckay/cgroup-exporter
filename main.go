@@ -41,7 +41,7 @@ func main() {
 
 	cgroupCollector := cgroupCollector{config}
 	registry := prometheus.NewRegistry()
-	registry.MustRegister(cgroupCollector)
-	router := mux.NewRouter
-	router.Handle("/metrics", promhttp.HandleFor(registry, promhttp.HandlerOpts{}))
+	registry.MustRegister(&cgroupCollector)
+	router := mux.NewRouter()
+	router.Handle("/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
 }
