@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"log"
+	"net/http"
 
 	"github.com/containerd/cgroups"
 	"github.com/gorilla/mux"
@@ -44,4 +45,5 @@ func main() {
 	registry.MustRegister(&cgroupCollector)
 	router := mux.NewRouter()
 	router.Handle("/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
+	log.Fatal(http.ListenAndServe(config.bind, router))
 }
