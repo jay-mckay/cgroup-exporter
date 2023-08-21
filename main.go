@@ -5,7 +5,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/containerd/cgroups"
+	"github.com/containerd/cgroups/v3"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -14,36 +14,23 @@ import (
 type Config struct {
 	bind string
 	path string
-	proc bool
-	mode string
 }
 
-type cgroupCollector struct {
-	config Config
+type CgroupCollector struct {
+	hierarchy cgroups.CGMode
+	path      string
 }
 
 func main() {
-	var config Config
-	flag.StringVar(&config.bind, "bind", ":2112", "port to bind exporter to")
-	flag.StringVar(&config.path, "path", "/sys/fs/cgroup", "path of cgroup to export metrics from")
-	flag.BoolVar(&config.proc, "proc", false, "whether to export process metrics")
+	var conf Config
+	flag.StringVar(&conf.bind, "bind", ":2112", "port to bind exporter to")
+	flag.StringVar(&conf.path, "path", "user.slice", "path of cgroup to export metrics from")
 	flag.Parse()
 
-	switch cgroups.Mode() {
-	case cgroups.Unified:
-		log.Println("cgroups using unified mount")
-	case cgroups.Hybrid:
-		log.Println("cgroups using hybrid mount")
-	case cgroups.Legacy:
-		log.Println("cgroups using legacy mount")
-	case cgroups.Unavailable:
-		log.Fatal("cgroups not mounted")
-	}
-
-	cgroupCollector := cgroupCollector{config}
-	registry := prometheus.NewRegistry()
-	registry.MustRegister(&cgroupCollector)
+	collector := CgroupCollector{cgroups.Mode(), conf.path}
+	registry := prometheus.NewPedanticRegistry()
+	registry.MustRegister(collector)
 	router := mux.NewRouter()
 	router.Handle("/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
-	log.Fatal(http.ListenAndServe(config.bind, router))
+	log.Fatal(http.ListenAndServe(conf.bind, router))
 }
