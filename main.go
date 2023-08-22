@@ -4,6 +4,7 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/containerd/cgroups/v3"
 	"github.com/gorilla/mux"
@@ -12,9 +13,8 @@ import (
 )
 
 type Config struct {
-	root string
-	uids bool
-	jobs bool
+	root     string
+	patterns []string
 }
 
 type CgroupCollector struct {
@@ -24,10 +24,11 @@ type CgroupCollector struct {
 
 func main() {
 	var conf Config
-	flag.StringVar(&conf.root, "path", "/slurm", "path of cgroup to export")
-	flag.BoolVar(&conf.uids, "export-uid-data", true, "whether or not to export nested user metrics")
-	flag.BoolVar(&conf.jobs, "export-job-data", true, "whether or not to export nested job metrics")
+	var s string
+	flag.StringVar(&conf.root, "root", "/slurm", "path of the root cgroup to export")
+	flag.StringVar(&s, "sub-cgroup-patterns", "/uid_* /uid_*/job_*", "patterns of sub cgroups to export underneath the root cgroup")
 	flag.Parse()
+	conf.patterns = strings.Split(s, " ")
 
 	collector := CgroupCollector{cgroups.Mode(), conf}
 	registry := prometheus.NewPedanticRegistry()

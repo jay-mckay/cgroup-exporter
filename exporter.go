@@ -35,6 +35,14 @@ func check(e error) {
 	}
 }
 
+func (c CgroupCollector) getSubCgroups(root string, pattern string) ([]string, error) {
+	if c.hierarchy == cgroups.Unified {
+		return filepath.Glob("/sys/fs/cgroup" + root + pattern)
+	} else {
+		return filepath.Glob("/sys/fs/cgroup/*" + root + pattern)
+	}
+}
+
 func (c CgroupCollector) Describe(ch chan<- *prometheus.Desc) {
 	for _, m := range CPUMetrics {
 		ch <- m.promDesc
@@ -43,23 +51,12 @@ func (c CgroupCollector) Describe(ch chan<- *prometheus.Desc) {
 
 func (c CgroupCollector) Collect(ch chan<- prometheus.Metric) {
 	log.Println(c.config.root)
-	//c.collectCPU(ch, c.config.root)
-	if c.config.uids {
-		patterns, err := filepath.Glob("/uid_*")
+	for _, pattern := range c.config.patterns {
+		cgroups, err := c.getSubCgroups(c.config.root, pattern)
 		check(err)
-		for _, p := range patterns {
-			//c.collectCPU(ch, p)
-			log.Println(p)
+		for _, cgroup := range cgroups {
+			log.Println(cgroup)
 		}
-	}
-	if c.config.jobs {
-		patterns, err := filepath.Glob("/uid_*/jobs_*")
-		check(err)
-		for _, p := range patterns {
-			//c.collectCPU(ch, p)
-			log.Println(p)
-		}
-
 	}
 }
 
