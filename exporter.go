@@ -1,8 +1,11 @@
 package main
 
 import (
-	cgroups "github.com/containerd/cgroups/v3"
-	cgroup1 "github.com/containerd/cgroups/v3/cgroup1"
+	"log"
+	"path/filepath"
+
+	"github.com/containerd/cgroups/v3"
+	"github.com/containerd/cgroups/v3/cgroup1"
 	"github.com/containerd/cgroups/v3/cgroup2"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -39,32 +42,50 @@ func (c CgroupCollector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (c CgroupCollector) Collect(ch chan<- prometheus.Metric) {
-	c.collectCPU(ch)
+	log.Println(c.config.root)
+	//c.collectCPU(ch, c.config.root)
+	if c.config.uids {
+		patterns, err := filepath.Glob("/uid_*")
+		check(err)
+		for _, p := range patterns {
+			//c.collectCPU(ch, p)
+			log.Println(p)
+		}
+	}
+	if c.config.jobs {
+		patterns, err := filepath.Glob("/uid_*/jobs_*")
+		check(err)
+		for _, p := range patterns {
+			//c.collectCPU(ch, p)
+			log.Println(p)
+		}
+
+	}
 }
 
-func (c CgroupCollector) collectCPU(ch chan<- prometheus.Metric) {
+func (c CgroupCollector) collectCPU(ch chan<- prometheus.Metric, cgroup string) {
 	var cpustats []Stat
 	if c.hierarchy == cgroups.Unified {
-		cpustats = c.collectCPUUnified()
+		cpustats = c.collectCPUUnified(cgroup)
 	} else {
-		cpustats = c.collectCPULegacy()
+		cpustats = c.collectCPULegacy(cgroup)
 	}
 	for _, s := range cpustats {
 		m := CPUMetrics[s.name]
-		ch <- prometheus.MustNewConstMetric(m.promDesc, m.promType, float64(s.value), c.path)
+		ch <- prometheus.MustNewConstMetric(m.promDesc, m.promType, float64(s.value), cgroup)
 	}
 }
 
-func (c CgroupCollector) collectCPULegacy() []Stat {
-	manager, err := cgroup1.Load(cgroup1.StaticPath(c.path))
+func (c CgroupCollector) collectCPULegacy(cgroup string) []Stat {
+	manager, err := cgroup1.Load(cgroup1.StaticPath(cgroup))
 	check(err)
 	s, err := manager.Stat()
 	check(err)
 	return []Stat{{"kernel", s.CPU.Usage.Kernel}, {"user", s.CPU.Usage.User}, {"total", s.CPU.Usage.Total}}
 }
 
-func (c CgroupCollector) collectCPUUnified() []Stat {
-	manager, err := cgroup2.Load(c.path, nil)
+func (c CgroupCollector) collectCPUUnified(cgroup string) []Stat {
+	manager, err := cgroup2.Load(cgroup, nil)
 	check(err)
 	s, err := manager.Stat()
 	check(err)

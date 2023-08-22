@@ -12,25 +12,27 @@ import (
 )
 
 type Config struct {
-	bind string
-	path string
+	root string
+	uids bool
+	jobs bool
 }
 
 type CgroupCollector struct {
 	hierarchy cgroups.CGMode
-	path      string
+	config    Config
 }
 
 func main() {
 	var conf Config
-	flag.StringVar(&conf.bind, "bind", ":2112", "port to bind exporter to")
-	flag.StringVar(&conf.path, "path", "user.slice", "path of cgroup to export metrics from")
+	flag.StringVar(&conf.root, "path", "/slurm", "path of cgroup to export")
+	flag.BoolVar(&conf.uids, "export-uid-data", true, "whether or not to export nested user metrics")
+	flag.BoolVar(&conf.jobs, "export-job-data", true, "whether or not to export nested job metrics")
 	flag.Parse()
 
-	collector := CgroupCollector{cgroups.Mode(), conf.path}
+	collector := CgroupCollector{cgroups.Mode(), conf}
 	registry := prometheus.NewPedanticRegistry()
 	registry.MustRegister(collector)
 	router := mux.NewRouter()
 	router.Handle("/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
-	log.Fatal(http.ListenAndServe(conf.bind, router))
+	log.Fatal(http.ListenAndServe(":2112", router))
 }
