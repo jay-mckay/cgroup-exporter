@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"path/filepath"
+	"strings"
 
 	"github.com/containerd/cgroups/v3"
 	"github.com/containerd/cgroups/v3/cgroup1"
@@ -35,12 +36,21 @@ func check(e error) {
 	}
 }
 
-func (c CgroupCollector) getSubCgroups(root string, pattern string) ([]string, error) {
+func (c CgroupCollector) getRelativeSubCgroups(cgroup string, pattern string) []string {
+	var root string
 	if c.hierarchy == cgroups.Unified {
-		return filepath.Glob("/sys/fs/cgroup" + root + pattern)
+		root = "sys/fs/cgroup"
 	} else {
-		return filepath.Glob("/sys/fs/cgroup/*" + root + pattern)
+		root = "/sys/fs/cgroup/cpu" // use cpu here, cpu always(?) enabled
 	}
+	patterns, err := filepath.Glob(root + cgroup + pattern)
+	check(err)
+	var cgroups []string
+	for _, p := range patterns {
+		tokens := strings.Split(p, cgroup)
+		cgroups = append(cgroups, cgroup+tokens[1])
+	}
+	return cgroups
 }
 
 func (c CgroupCollector) Describe(ch chan<- *prometheus.Desc) {
@@ -50,12 +60,13 @@ func (c CgroupCollector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (c CgroupCollector) Collect(ch chan<- prometheus.Metric) {
-	log.Println(c.config.root)
+	log.Println("collecting", c.config.root)
+	c.collectCPU(ch, c.config.root)
 	for _, pattern := range c.config.patterns {
-		cgroups, err := c.getSubCgroups(c.config.root, pattern)
-		check(err)
+		cgroups := c.getRelativeSubCgroups(c.config.root, pattern)
 		for _, cgroup := range cgroups {
-			log.Println(cgroup)
+			log.Println("collecting", cgroup)
+			c.collectCPU(ch, cgroup)
 		}
 	}
 }

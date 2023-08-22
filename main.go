@@ -25,8 +25,8 @@ type CgroupCollector struct {
 func main() {
 	var conf Config
 	var s string
-	flag.StringVar(&conf.root, "root", "/slurm", "path of the root cgroup to export")
-	flag.StringVar(&s, "sub-cgroup-patterns", "/uid_* /uid_*/job_*", "patterns of sub cgroups to export underneath the root cgroup")
+	flag.StringVar(&conf.root, "root", "/slurm", "path of the root cgroup to export, default is /slurm")
+	flag.StringVar(&s, "sub-cgroup-patterns", "/uid_* /uid_*/job_*", "patterns of sub cgroups to export underneath the root cgroup, defaults are /uid_* and /uid_*/job_*")
 	flag.Parse()
 	conf.patterns = strings.Split(s, " ")
 
