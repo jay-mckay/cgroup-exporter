@@ -48,6 +48,9 @@ func (c CgroupCollector) getRelativeSubCgroups(cgroup string, pattern string) []
 	var cgroups []string
 	for _, p := range patterns {
 		tokens := strings.Split(p, cgroup)
+		if len(tokens) == 1 {
+			continue
+		}
 		cgroups = append(cgroups, cgroup+tokens[1])
 	}
 	return cgroups
