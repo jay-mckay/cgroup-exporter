@@ -1,10 +1,9 @@
 package main
 
 import (
-	"flag"
 	"log"
 	"net/http"
-	"strings"
+	"os"
 
 	"github.com/containerd/cgroups/v3"
 	"github.com/gorilla/mux"
@@ -12,25 +11,29 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-type Config struct {
-	root     string
-	patterns []string
+type V2Collector struct {
+	host string
 }
 
-type CgroupCollector struct {
-	hierarchy cgroups.CGMode
-	config    Config
+type V1Collector struct {
+	host string
 }
 
 func main() {
-	var conf Config
-	var s string
-	flag.StringVar(&conf.root, "root", "/slurm", "path of the root cgroup to export, default is /slurm")
-	flag.StringVar(&s, "sub-cgroup-patterns", "/uid_* /uid_*/job_*", "patterns of sub cgroups to export underneath the root cgroup, defaults are /uid_* and /uid_*/job_*")
-	flag.Parse()
-	conf.patterns = strings.Split(s, " ")
-
-	collector := CgroupCollector{cgroups.Mode(), conf}
+	host, err := os.Hostname()
+	check(err)
+	mode := cgroups.Mode()
+	var collector prometheus.Collector
+	switch mode {
+	case cgroups.Hybrid:
+		collector = V2Collector{host}
+	case cgroups.Unified:
+		collector = V2Collector{host}
+	case cgroups.Legacy:
+		collector = V1Collector{host}
+	default:
+		log.Fatal("cgroups are not enabled")
+	}
 	registry := prometheus.NewPedanticRegistry()
 	registry.MustRegister(collector)
 	router := mux.NewRouter()

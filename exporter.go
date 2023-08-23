@@ -5,29 +5,32 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/containerd/cgroups/v3"
 	"github.com/containerd/cgroups/v3/cgroup1"
 	"github.com/containerd/cgroups/v3/cgroup2"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-var cgroupMetricLabels = []string{"cgroup"}
-var cgroupMetricPrefix = "cgroup_"
+var slurmMetricLabels = []string{"uid", "jobid", "host"}
+var slurmMetricPrefix = "slurm_job_"
+var CPUMetrics = map[string]Metric{
+	"kernel": {prometheus.NewDesc(slurmMetricPrefix+"cpu_kernel_ns", "kernel cpu time for a cgroup in ns", slurmMetricLabels, nil), prometheus.CounterValue},
+	"user":   {prometheus.NewDesc(slurmMetricPrefix+"cpu_user_ns", "user cpu time for a cgroup in ns", slurmMetricLabels, nil), prometheus.CounterValue},
+	"total":  {prometheus.NewDesc(slurmMetricPrefix+"cpu_total_ns", "total cpu time for a cgroup in ns", slurmMetricLabels, nil), prometheus.CounterValue},
+}
 
 type Metric struct {
 	promDesc *prometheus.Desc
 	promType prometheus.ValueType
 }
 
-var CPUMetrics = map[string]Metric{
-	"kernel": {prometheus.NewDesc(cgroupMetricPrefix+"cpu_kernel_ns", "kernel cpu time for a cgroup in ns", cgroupMetricLabels, nil), prometheus.CounterValue},
-	"user":   {prometheus.NewDesc(cgroupMetricPrefix+"cpu_user_ns", "user cpu time for a cgroup in ns", cgroupMetricLabels, nil), prometheus.CounterValue},
-	"total":  {prometheus.NewDesc(cgroupMetricPrefix+"cpu_total_ns", "total cpu time for a cgroup in ns", cgroupMetricLabels, nil), prometheus.CounterValue},
-}
-
 type Stat struct {
 	name  string
 	value uint64
+}
+
+type Exporter interface {
+	getRelativeJobPaths() []string
+	stat(string) []Stat
 }
 
 func check(e error) {
@@ -36,58 +39,77 @@ func check(e error) {
 	}
 }
 
-func (c CgroupCollector) getRelativeSubCgroups(cgroup string, pattern string) []string {
-	var root string
-	if c.hierarchy == cgroups.Unified {
-		root = "sys/fs/cgroup"
-	} else {
-		root = "/sys/fs/cgroup/cpu" // use cpu here, cpu always(?) enabled
-	}
-	patterns, err := filepath.Glob(root + cgroup + pattern)
+func (c V1Collector) getRelativeJobPaths() []string {
+	return getRelativeJobPaths("/sys/fs/cgroup/cpu")
+}
+
+func (c V2Collector) getRelativeJobPaths() []string {
+	return getRelativeJobPaths("/sys/fs/cgroup")
+}
+
+func getRelativeJobPaths(root string) []string {
+	paths, err := filepath.Glob(root + "/slurm/uid_*/job_*")
 	check(err)
 	var cgroups []string
-	for _, p := range patterns {
-		tokens := strings.Split(p, cgroup)
-		if len(tokens) == 1 {
-			continue
-		}
-		cgroups = append(cgroups, cgroup+tokens[1])
+	for _, p := range paths {
+		// TODO: REGEX please
+		tokens := strings.Split(p, "/slurm") // return path relative to slurm
+		cgroups = append(cgroups, "/slurm"+tokens[1])
 	}
 	return cgroups
 }
 
-func (c CgroupCollector) Describe(ch chan<- *prometheus.Desc) {
+func (c V1Collector) Describe(ch chan<- *prometheus.Desc) {
+	describe(ch)
+}
+
+func (c V2Collector) Describe(ch chan<- *prometheus.Desc) {
+	describe(ch)
+}
+
+func describe(ch chan<- *prometheus.Desc) {
 	for _, m := range CPUMetrics {
 		ch <- m.promDesc
 	}
 }
 
-func (c CgroupCollector) Collect(ch chan<- prometheus.Metric) {
-	log.Println("collecting", c.config.root)
-	c.collectCPU(ch, c.config.root)
-	for _, pattern := range c.config.patterns {
-		cgroups := c.getRelativeSubCgroups(c.config.root, pattern)
-		for _, cgroup := range cgroups {
-			log.Println("collecting", cgroup)
-			c.collectCPU(ch, cgroup)
+func (c V2Collector) Collect(ch chan<- prometheus.Metric) {
+	collect(ch, c, c.host)
+}
+
+func (c V1Collector) Collect(ch chan<- prometheus.Metric) {
+	collect(ch, c, c.host)
+}
+
+func collect(ch chan<- prometheus.Metric, c Exporter, host string) {
+	cgroups := c.getRelativeJobPaths()
+	if len(cgroups) < 1 {
+		log.Println("no jobs running on host")
+		return
+	}
+	for _, cgroup := range cgroups {
+		// TODO: REGEX please, I mean c'mon
+		_, t1, cut := strings.Cut(cgroup, "/slurm/uid_")
+		if !cut {
+			continue
+		}
+		uid, t2, cut := strings.Cut(t1, "/")
+		if !cut {
+			continue
+		}
+		_, job, cut := strings.Cut(t2, "/job_")
+		if !cut {
+			continue
+		}
+		stats := c.stat(cgroup)
+		for _, s := range stats {
+			m := CPUMetrics[s.name]
+			ch <- prometheus.MustNewConstMetric(m.promDesc, m.promType, float64(s.value), uid, job, host)
 		}
 	}
 }
 
-func (c CgroupCollector) collectCPU(ch chan<- prometheus.Metric, cgroup string) {
-	var cpustats []Stat
-	if c.hierarchy == cgroups.Unified {
-		cpustats = c.collectCPUUnified(cgroup)
-	} else {
-		cpustats = c.collectCPULegacy(cgroup)
-	}
-	for _, s := range cpustats {
-		m := CPUMetrics[s.name]
-		ch <- prometheus.MustNewConstMetric(m.promDesc, m.promType, float64(s.value), cgroup)
-	}
-}
-
-func (c CgroupCollector) collectCPULegacy(cgroup string) []Stat {
+func (c V2Collector) stat(cgroup string) []Stat {
 	manager, err := cgroup1.Load(cgroup1.StaticPath(cgroup))
 	check(err)
 	s, err := manager.Stat()
@@ -95,7 +117,7 @@ func (c CgroupCollector) collectCPULegacy(cgroup string) []Stat {
 	return []Stat{{"kernel", s.CPU.Usage.Kernel}, {"user", s.CPU.Usage.User}, {"total", s.CPU.Usage.Total}}
 }
 
-func (c CgroupCollector) collectCPUUnified(cgroup string) []Stat {
+func (c V1Collector) stat(cgroup string) []Stat {
 	manager, err := cgroup2.Load(cgroup, nil)
 	check(err)
 	s, err := manager.Stat()
