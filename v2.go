@@ -22,5 +22,8 @@ func (c V2Collector) GetStats(cgroup string) []Stat {
 	check(err)
 	s, err := manager.Stat()
 	check(err)
-	return []Stat{{"kernel", s.CPU.SystemUsec}, {"user", s.CPU.UsageUsec}, {"total", s.CPU.UsageUsec}}
+	return []Stat{
+		{"kernel", s.CPU.SystemUsec}, {"user", s.CPU.UsageUsec}, {"total", s.CPU.UsageUsec},
+		{"mem_rss", s.Memory.Usage},
+	}
 }

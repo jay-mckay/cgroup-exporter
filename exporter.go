@@ -10,10 +10,11 @@ import (
 
 var slurmMetricLabels = []string{"uid", "jobid", "host"}
 var slurmMetricPrefix = "slurm_job_"
-var CPUMetrics = map[string]Metric{
-	"kernel": {prometheus.NewDesc(slurmMetricPrefix+"cpu_kernel_ns", "kernel cpu time for a cgroup in ns", slurmMetricLabels, nil), prometheus.CounterValue},
-	"user":   {prometheus.NewDesc(slurmMetricPrefix+"cpu_user_ns", "user cpu time for a cgroup in ns", slurmMetricLabels, nil), prometheus.CounterValue},
-	"total":  {prometheus.NewDesc(slurmMetricPrefix+"cpu_total_ns", "total cpu time for a cgroup in ns", slurmMetricLabels, nil), prometheus.CounterValue},
+var Metrics = map[string]Metric{
+	"kernel_cpu": {prometheus.NewDesc(slurmMetricPrefix+"cpu_kernel_ns", "kernel cpu time for a cgroup in ns", slurmMetricLabels, nil), prometheus.CounterValue},
+	"user_cpu":   {prometheus.NewDesc(slurmMetricPrefix+"cpu_user_ns", "user cpu time for a cgroup in ns", slurmMetricLabels, nil), prometheus.CounterValue},
+	"total_cpu":  {prometheus.NewDesc(slurmMetricPrefix+"cpu_total_ns", "total cpu time for a cgroup in ns", slurmMetricLabels, nil), prometheus.CounterValue},
+	"mem_rss":    {prometheus.NewDesc(slurmMetricPrefix+"cpu_total_ns", "total cpu time for a cgroup in ns", slurmMetricLabels, nil), prometheus.CounterValue},
 }
 
 type Metric struct {
@@ -50,7 +51,7 @@ func getRelativeJobPaths(root string) []string {
 }
 
 func describe(ch chan<- *prometheus.Desc) {
-	for _, m := range CPUMetrics {
+	for _, m := range Metrics {
 		ch <- m.promDesc
 	}
 }
@@ -77,7 +78,7 @@ func collect(ch chan<- prometheus.Metric, c Exporter, host string) {
 		}
 		stats := c.GetStats(cgroup)
 		for _, s := range stats {
-			m := CPUMetrics[s.name]
+			m := Metrics[s.name]
 			ch <- prometheus.MustNewConstMetric(m.promDesc, m.promType, float64(s.value), uid, job, host)
 		}
 	}
