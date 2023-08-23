@@ -1,9 +1,8 @@
 package main
 
 import (
-	"log"
 	"path/filepath"
-	"strings"
+	"regexp"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -39,13 +38,15 @@ func check(e error) {
 }
 
 func getRelativeJobPaths(root string) []string {
+	r := regexp.MustCompile("/slurm/uid_([0-9]+)/job_([0-9]+)")
 	paths, err := filepath.Glob(root + "/slurm/uid_*/job_*")
 	check(err)
 	var cgroups []string
 	for _, p := range paths {
-		// TODO: REGEX please
-		tokens := strings.Split(p, "/slurm") // return path relative to slurm
-		cgroups = append(cgroups, "/slurm"+tokens[1])
+		s := r.FindString(p)
+		if s != "" {
+			cgroups = append(cgroups, s)
+		}
 	}
 	return cgroups
 }
@@ -57,25 +58,11 @@ func describe(ch chan<- *prometheus.Desc) {
 }
 
 func collect(ch chan<- prometheus.Metric, c Exporter, host string) {
+	r := regexp.MustCompile("/slurm(?:/uid_([0-9]+)/job_([0-9]+))")
 	cgroups := c.GetRelativeJobPaths()
-	if len(cgroups) < 1 {
-		log.Println("no jobs running on host")
-		return
-	}
 	for _, cgroup := range cgroups {
-		// TODO: REGEX please, I mean c'mon
-		_, t1, cut := strings.Cut(cgroup, "/slurm/uid_")
-		if !cut {
-			continue
-		}
-		uid, t2, cut := strings.Cut(t1, "/")
-		if !cut {
-			continue
-		}
-		_, job, cut := strings.Cut(t2, "/job_")
-		if !cut {
-			continue
-		}
+		match := r.FindAllStringSubmatch(cgroup, -1)
+		job, uid := match[0][1], match[0][2]
 		stats := c.GetStats(cgroup)
 		for _, s := range stats {
 			m := Metrics[s.name]
