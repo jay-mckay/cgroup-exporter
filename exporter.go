@@ -13,7 +13,7 @@ var Metrics = map[string]Metric{
 	"kernel_cpu": {prometheus.NewDesc(slurmMetricPrefix+"cpu_kernel_ns", "kernel cpu time for a cgroup in ns", slurmMetricLabels, nil), prometheus.CounterValue},
 	"user_cpu":   {prometheus.NewDesc(slurmMetricPrefix+"cpu_user_ns", "user cpu time for a cgroup in ns", slurmMetricLabels, nil), prometheus.CounterValue},
 	"total_cpu":  {prometheus.NewDesc(slurmMetricPrefix+"cpu_total_ns", "total cpu time for a cgroup in ns", slurmMetricLabels, nil), prometheus.CounterValue},
-	"mem_rss":    {prometheus.NewDesc(slurmMetricPrefix+"cpu_total_ns", "total cpu time for a cgroup in ns", slurmMetricLabels, nil), prometheus.CounterValue},
+	//"mem_rss":    {prometheus.NewDesc(slurmMetricPrefix+"cpu_total_ns", "total cpu time for a cgroup in ns", slurmMetricLabels, nil), prometheus.CounterValue},
 }
 
 type Metric struct {
