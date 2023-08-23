@@ -5,8 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/containerd/cgroups/v3/cgroup1"
-	"github.com/containerd/cgroups/v3/cgroup2"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -29,22 +27,14 @@ type Stat struct {
 }
 
 type Exporter interface {
-	getRelativeJobPaths() []string
-	stat(string) []Stat
+	GetRelativeJobPaths() []string
+	GetStats(string) []Stat
 }
 
 func check(e error) {
 	if e != nil {
 		panic(e)
 	}
-}
-
-func (c V1Collector) getRelativeJobPaths() []string {
-	return getRelativeJobPaths("/sys/fs/cgroup/cpu")
-}
-
-func (c V2Collector) getRelativeJobPaths() []string {
-	return getRelativeJobPaths("/sys/fs/cgroup")
 }
 
 func getRelativeJobPaths(root string) []string {
@@ -59,30 +49,14 @@ func getRelativeJobPaths(root string) []string {
 	return cgroups
 }
 
-func (c V1Collector) Describe(ch chan<- *prometheus.Desc) {
-	describe(ch)
-}
-
-func (c V2Collector) Describe(ch chan<- *prometheus.Desc) {
-	describe(ch)
-}
-
 func describe(ch chan<- *prometheus.Desc) {
 	for _, m := range CPUMetrics {
 		ch <- m.promDesc
 	}
 }
 
-func (c V2Collector) Collect(ch chan<- prometheus.Metric) {
-	collect(ch, c, c.host)
-}
-
-func (c V1Collector) Collect(ch chan<- prometheus.Metric) {
-	collect(ch, c, c.host)
-}
-
 func collect(ch chan<- prometheus.Metric, c Exporter, host string) {
-	cgroups := c.getRelativeJobPaths()
+	cgroups := c.GetRelativeJobPaths()
 	if len(cgroups) < 1 {
 		log.Println("no jobs running on host")
 		return
@@ -101,26 +75,10 @@ func collect(ch chan<- prometheus.Metric, c Exporter, host string) {
 		if !cut {
 			continue
 		}
-		stats := c.stat(cgroup)
+		stats := c.GetStats(cgroup)
 		for _, s := range stats {
 			m := CPUMetrics[s.name]
 			ch <- prometheus.MustNewConstMetric(m.promDesc, m.promType, float64(s.value), uid, job, host)
 		}
 	}
-}
-
-func (c V2Collector) stat(cgroup string) []Stat {
-	manager, err := cgroup1.Load(cgroup1.StaticPath(cgroup))
-	check(err)
-	s, err := manager.Stat()
-	check(err)
-	return []Stat{{"kernel", s.CPU.Usage.Kernel}, {"user", s.CPU.Usage.User}, {"total", s.CPU.Usage.Total}}
-}
-
-func (c V1Collector) stat(cgroup string) []Stat {
-	manager, err := cgroup2.Load(cgroup, nil)
-	check(err)
-	s, err := manager.Stat()
-	check(err)
-	return []Stat{{"kernel", s.CPU.SystemUsec}, {"user", s.CPU.UsageUsec}, {"total", s.CPU.UsageUsec}}
 }
