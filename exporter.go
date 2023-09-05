@@ -13,7 +13,6 @@ var Metrics = map[string]Metric{
 	"kernel_cpu": {prometheus.NewDesc(slurmMetricPrefix+"cpu_kernel_ns", "kernel cpu time for a cgroup in ns", slurmMetricLabels, nil), prometheus.CounterValue},
 	"user_cpu":   {prometheus.NewDesc(slurmMetricPrefix+"cpu_user_ns", "user cpu time for a cgroup in ns", slurmMetricLabels, nil), prometheus.CounterValue},
 	"total_cpu":  {prometheus.NewDesc(slurmMetricPrefix+"cpu_total_ns", "total cpu time for a cgroup in ns", slurmMetricLabels, nil), prometheus.CounterValue},
-	//"mem_rss":    {prometheus.NewDesc(slurmMetricPrefix+"cpu_total_ns", "total cpu time for a cgroup in ns", slurmMetricLabels, nil), prometheus.CounterValue},
 }
 
 type Metric struct {
@@ -21,14 +20,9 @@ type Metric struct {
 	promType prometheus.ValueType
 }
 
-type Stat struct {
-	name  string
-	value uint64
-}
-
 type Exporter interface {
 	GetRelativeJobPaths() []string
-	GetStats(string) []Stat
+	GetStats(string) map[string]uint64
 }
 
 func check(e error) {
@@ -64,9 +58,9 @@ func collect(ch chan<- prometheus.Metric, c Exporter, host string) {
 		match := r.FindAllStringSubmatch(cgroup, -1)
 		job, uid := match[0][1], match[0][2]
 		stats := c.GetStats(cgroup)
-		for _, s := range stats {
-			m := Metrics[s.name]
-			ch <- prometheus.MustNewConstMetric(m.promDesc, m.promType, float64(s.value), uid, job, host)
+		for name, m := range Metrics {
+			ch <- prometheus.MustNewConstMetric(m.promDesc, m.promType, float64(stats[name]), uid, job, host)
+
 		}
 	}
 }

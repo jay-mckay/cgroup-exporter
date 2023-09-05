@@ -17,13 +17,14 @@ func (c V1Collector) Collect(ch chan<- prometheus.Metric) {
 	collect(ch, c, c.host)
 }
 
-func (c V1Collector) GetStats(cgroup string) []Stat {
+func (c V1Collector) GetStats(cgroup string) map[string]uint64 {
 	manager, err := cgroup1.Load(cgroup1.StaticPath(cgroup))
 	check(err)
 	s, err := manager.Stat()
 	check(err)
-	return []Stat{
-		{"kernel_cpu", s.CPU.Usage.Kernel}, {"user_cpu", s.CPU.Usage.User}, {"total_cpu", s.CPU.Usage.Total},
-		//{"mem_rss", s.Memory.RSS},
+	return map[string]uint64{
+		"kernel_cpu": s.CPU.Usage.Kernel,
+		"user_cpu":   s.CPU.Usage.User,
+		"total_cpu":  s.CPU.Usage.Total,
 	}
 }
