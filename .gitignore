@@ -22,3 +22,6 @@ go.work
 
 # name of binary built by `go build .`
 cgroup-exporter
+
+# test slurm output file
+out.text
