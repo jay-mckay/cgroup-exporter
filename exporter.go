@@ -105,7 +105,7 @@ func (c V1Collector) GetStats(cgroup string) map[string]uint64 {
 		CPU_KERNEL: s.CPU.Usage.Kernel,
 		CPU_USER:   s.CPU.Usage.User,
 		CPU_TOTAL:  s.CPU.Usage.Total,
-		MEM_USAGE:  s.Memory.GetTotalRSS(),
+		MEM_USAGE:  s.Memory.Usage.Usage,
 	}
 }
 
