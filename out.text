@@ -1,0 +1,9 @@
+launching two cpu timeout 10s
+stress-ng: info:  [893396] setting to a 10 secs run per stressor
+stress-ng: info:  [893396] dispatching hogs: 2 cpu
+stress-ng: info:  [893396] passed: 2: cpu (2)
+stress-ng: info:  [893396] failed: 0
+stress-ng: info:  [893396] skipped: 0
+stress-ng: info:  [893396] metrics untrustworthy: 0
+stress-ng: info:  [893396] successful run completed in 10.01 secs
+finished

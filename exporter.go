@@ -59,7 +59,7 @@ func collect(ch chan<- prometheus.Metric, c Exporter, host string) {
 		job, uid := match[0][1], match[0][2]
 		stats := c.GetStats(cgroup)
 		for name, m := range Metrics {
-			ch <- prometheus.MustNewConstMetric(m.promDesc, m.promType, float64(stats[name]), uid, job, host)
+			ch <- prometheus.MustNewConstMetric(m.promDesc, m.promType, float64(stats[name]), job, uid, host)
 
 		}
 	}
