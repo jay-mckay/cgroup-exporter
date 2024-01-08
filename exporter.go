@@ -13,6 +13,7 @@ var CPU_KERNEL = "cpu_kernel"
 var CPU_USER = "cpu_user"
 var CPU_TOTAL = "cpu_total"
 var MEM_USAGE = "mem_usage"
+var MEM_SWAP = "mem_swap"
 
 var labels = []string{"uid", "jobid", "host"}
 var metrics = map[string]Metric{
@@ -20,6 +21,7 @@ var metrics = map[string]Metric{
 	CPU_USER:   {prometheus.NewDesc(CPU_USER, "user cpu time for a cgroup in ns", labels, nil), prometheus.CounterValue},
 	CPU_TOTAL:  {prometheus.NewDesc(CPU_TOTAL, "total cpu time for a cgroup in ns", labels, nil), prometheus.CounterValue},
 	MEM_USAGE:  {prometheus.NewDesc(MEM_USAGE, "total memory usage for a cgroup in bytes", labels, nil), prometheus.GaugeValue},
+	MEM_SWAP:   {prometheus.NewDesc(MEM_SWAP, "total swap usage for a cgroup in bytes", labels, nil), prometheus.GaugeValue},
 }
 
 type Metric struct {
@@ -106,6 +108,7 @@ func (c V1Collector) GetStats(cgroup string) map[string]uint64 {
 		CPU_USER:   s.CPU.Usage.User,
 		CPU_TOTAL:  s.CPU.Usage.Total,
 		MEM_USAGE:  s.Memory.Usage.Usage,
+		MEM_USAGE:  s.Memory.Swap.Usage,
 	}
 }
 
@@ -119,5 +122,6 @@ func (c V2Collector) GetStats(cgroup string) map[string]uint64 {
 		CPU_USER:   s.CPU.UserUsec,
 		CPU_TOTAL:  s.CPU.UsageUsec,
 		MEM_USAGE:  s.Memory.Usage,
+		MEM_SWAP:   s.Memory.SwapUsage,
 	}
 }
