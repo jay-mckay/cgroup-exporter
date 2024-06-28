@@ -1,9 +1,7 @@
 package main
 
 import (
-	"log"
 	"path/filepath"
-	"strings"
 
 	"github.com/containerd/cgroups/v3"
 	"github.com/containerd/cgroups/v3/cgroup1"
@@ -14,12 +12,12 @@ import (
 var cgroupMetricLabels = []string{"cgroup"}
 var cgroupMetricPrefix = "cgroup_"
 
-type Metric struct {
+type cgroupMetric struct {
 	promDesc *prometheus.Desc
 	promType prometheus.ValueType
 }
 
-var CPUMetrics = map[string]Metric{
+var CPUMetrics = map[string]cgroupMetric{
 	"kernel": {prometheus.NewDesc(cgroupMetricPrefix+"cpu_kernel_ns", "kernel cpu time for a cgroup in ns", cgroupMetricLabels, nil), prometheus.CounterValue},
 	"user":   {prometheus.NewDesc(cgroupMetricPrefix+"cpu_user_ns", "user cpu time for a cgroup in ns", cgroupMetricLabels, nil), prometheus.CounterValue},
 	"total":  {prometheus.NewDesc(cgroupMetricPrefix+"cpu_total_ns", "total cpu time for a cgroup in ns", cgroupMetricLabels, nil), prometheus.CounterValue},
@@ -36,21 +34,28 @@ func check(e error) {
 	}
 }
 
-func (c CgroupCollector) getRelativeSubCgroups(cgroup string, pattern string) []string {
-	var root string
-	if c.hierarchy == cgroups.Unified {
-		root = "sys/fs/cgroup"
-	} else {
-		root = "/sys/fs/cgroup/cpu" // use cpu here, cpu always(?) enabled
-	}
-	patterns, err := filepath.Glob(root + cgroup + pattern)
+func NewSlurmCollector() *CgroupCollector {
+	var slice = "slurm"
+	var groupGlobs = []string{"uid_*", "uid_*/job_*"}
+	return NewCgroupCollector(slice, groupGlobs)
+}
+
+func NewUserSliceCollector() *CgroupCollector {
+	var slice = "user.slice"
+	var groupGlobs = []string{"user-*.slice"}
+	return NewCgroupCollector(slice, groupGlobs)
+}
+
+func NewCgroupCollector(root string, patterns []string) *CgroupCollector {
+	collector := CgroupCollector{cgroups.Mode(), root, patterns}
+	return &collector
+}
+
+func (c CgroupCollector) getRelativeSubCgroups(slice string, groupPattern string) []string {
+	glob := filepath.Join(slice, groupPattern)
+	paths, err := filepath.Glob(glob)
 	check(err)
-	var cgroups []string
-	for _, p := range patterns {
-		tokens := strings.Split(p, cgroup)
-		cgroups = append(cgroups, cgroup+tokens[1])
-	}
-	return cgroups
+	return paths
 }
 
 func (c CgroupCollector) Describe(ch chan<- *prometheus.Desc) {
@@ -60,12 +65,10 @@ func (c CgroupCollector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (c CgroupCollector) Collect(ch chan<- prometheus.Metric) {
-	log.Println("collecting", c.config.root)
-	c.collectCPU(ch, c.config.root)
-	for _, pattern := range c.config.patterns {
-		cgroups := c.getRelativeSubCgroups(c.config.root, pattern)
+	c.collectCPU(ch, "/"+c.root) // leading slash see cgroup2.Manager.VerifyGroupPath
+	for _, pattern := range c.patterns {
+		cgroups := c.getRelativeSubCgroups(c.root, pattern)
 		for _, cgroup := range cgroups {
-			log.Println("collecting", cgroup)
 			c.collectCPU(ch, cgroup)
 		}
 	}
@@ -93,7 +96,7 @@ func (c CgroupCollector) collectCPULegacy(cgroup string) []Stat {
 }
 
 func (c CgroupCollector) collectCPUUnified(cgroup string) []Stat {
-	manager, err := cgroup2.Load(cgroup, nil)
+	manager, err := cgroup2.Load(cgroup)
 	check(err)
 	s, err := manager.Stat()
 	check(err)
